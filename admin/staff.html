@@ -70,10 +70,11 @@
           <option value="field">外場服務組</option>
         </select>
       </div>
-      <div>
-        <label class="text-sm text-slate-600">排序（小→大）</label>
+      <div id="sortOrderField" class="hidden">
+        <label class="text-sm text-slate-600">顯示順序（小→大，可手動調整）</label>
         <input id="fSortOrder" type="number" value="0"
           class="w-full border border-slate-300 rounded px-3 py-2 text-sm">
+        <p class="text-[11px] text-slate-400 mt-1">新增員工時系統自動編號,只在編輯時可調整</p>
       </div>
       <div>
         <label class="text-sm text-slate-600 flex items-center gap-2">
@@ -165,7 +166,8 @@ function openModal(sid) {
   clearPhoto = false;
   clearPhotoInput();
   if (sid) {
-    // 編輯
+    // 編輯 — 顯示排序欄位
+    document.getElementById('sortOrderField').classList.remove('hidden');
     API.get('/api/admin/staff', true).then(data => {
       const s = (data.staff||[]).find(x => x.id === sid);
       if (!s) return;
@@ -183,6 +185,8 @@ function openModal(sid) {
       }
     });
   } else {
+    // 新增 — 隱藏排序欄位,後端自動編號
+    document.getElementById('sortOrderField').classList.add('hidden');
     document.getElementById('modalTitle').textContent = '新增員工';
     document.getElementById('staffId').value = '';
     document.getElementById('fName').value = '';
