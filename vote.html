@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>深澳鐵道自行車 — 為現場服務人員投票</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/common.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  body{font-family:'Noto Sans TC',sans-serif}
+  .staff-card{transition:all .15s; cursor:pointer}
+  .staff-card.selected{transform:scale(1.03)}
+  .staff-card.selected .photo-wrap{
+    box-shadow:0 0 0 4px #16a34a, 0 8px 20px rgba(22,163,74,.3);
+  }
+  .staff-card .photo-wrap{
+    box-shadow:0 0 0 2px #e5e7eb;
+    transition:box-shadow .15s;
+  }
+  .photo-placeholder{
+    background:linear-gradient(135deg,#34d399,#0891b2);
+    color:#fff; font-weight:bold;
+  }
+</style>
+</head>
+<body class="bg-gradient-to-b from-emerald-50 to-cyan-50 min-h-screen pb-16">
+
+<!-- 頂部 banner -->
+<header class="bg-gradient-to-r from-emerald-700 to-cyan-700 text-white px-5 pt-6 pb-8 rounded-b-3xl shadow-lg">
+  <h1 class="text-2xl font-black tracking-wide">為現場人員按個讚</h1>
+  <p class="text-sm text-emerald-50 mt-1">深澳鐵道自行車 · 月度服務評選</p>
+  <p class="text-xs text-emerald-100 mt-3 leading-relaxed">
+    完全匿名,每月限投一次。<br>
+    您的肯定是我們努力的動力 ♡
+  </p>
+</header>
+
+<main class="max-w-md mx-auto px-4 -mt-4">
+
+  <!-- 已投過提示 -->
+  <div id="alreadyVoted" class="hidden bg-amber-50 border-2 border-amber-300 rounded-xl p-4 mb-4 text-sm text-amber-800">
+    <p class="font-bold">您本月已經投過票了</p>
+    <p class="text-xs mt-1">每月限投一次,下個月再來吧!</p>
+  </div>
+
+  <!-- 載入中 -->
+  <div id="loading" class="text-center py-12 text-slate-400">
+    <svg class="animate-spin h-8 w-8 mx-auto" fill="none" viewBox="0 0 24 24">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+    </svg>
+    <p class="mt-2 text-sm">載入中…</p>
+  </div>
+
+  <!-- 票務組 -->
+  <section id="ticketSection" class="hidden mt-4">
+    <div class="flex items-baseline justify-between mb-2">
+      <h2 class="text-lg font-bold text-slate-800">
+        <span class="inline-block w-2 h-5 bg-emerald-500 rounded mr-2 align-middle"></span>
+        現場票務組
+      </h2>
+      <span class="text-xs text-slate-500" id="ticketHint">選 1 位</span>
+    </div>
+    <p class="text-xs text-slate-500 mb-3">為今日服務您的票務人員投票</p>
+    <div id="ticketGrid" class="grid grid-cols-3 gap-3"></div>
+    <button onclick="clearChoice('ticket')" id="skipTicket"
+      class="mt-2 text-xs text-slate-500 underline hover:text-slate-700">本組跳過不投</button>
+  </section>
+
+  <!-- 外場組 -->
+  <section id="fieldSection" class="hidden mt-6">
+    <div class="flex items-baseline justify-between mb-2">
+      <h2 class="text-lg font-bold text-slate-800">
+        <span class="inline-block w-2 h-5 bg-cyan-500 rounded mr-2 align-middle"></span>
+        外場服務組
+      </h2>
+      <span class="text-xs text-slate-500" id="fieldHint">選 1 位</span>
+    </div>
+    <p class="text-xs text-slate-500 mb-3">為協助您搭乘 / 指引 / 拍照的外場人員投票</p>
+    <div id="fieldGrid" class="grid grid-cols-3 gap-3"></div>
+    <button onclick="clearChoice('field')" id="skipField"
+      class="mt-2 text-xs text-slate-500 underline hover:text-slate-700">本組跳過不投</button>
+  </section>
+
+  <!-- 送出按鈕 -->
+  <div id="submitBar" class="hidden mt-8 sticky bottom-4 z-10">
+    <button id="submitBtn" onclick="submitVote()"
+      class="w-full bg-gradient-to-r from-emerald-600 to-cyan-600 text-white font-bold py-4 rounded-2xl shadow-xl hover:opacity-90 active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed">
+      送出投票
+    </button>
+    <p class="text-center text-xs text-slate-500 mt-2" id="selectedHint"></p>
+  </div>
+
+  <!-- footer -->
+  <footer class="text-center text-[11px] text-slate-400 mt-12 leading-relaxed">
+    完全匿名 · 不收集任何個資 · 每月重置<br>
+    依個人資料保護法妥善處理
+  </footer>
+</main>
+
+<!-- 訊息 toast -->
+<div id="toast" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-5 py-3 rounded-full shadow-2xl z-50 text-sm"></div>
+
+<script>
+let staff = [];
+let choice = { ticket: null, field: null };
+
+function toast(msg, ms=2200) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.remove('hidden');
+  setTimeout(()=>t.classList.add('hidden'), ms);
+}
+
+function staffCardHTML(s) {
+  const photoEl = s.has_photo
+    ? `<img src="${staffPhotoURL(s.id)}" alt="${esc(s.name)}" class="w-full h-full object-cover">`
+    : `<div class="photo-placeholder w-full h-full flex items-center justify-center text-2xl">${esc((s.name||'?').slice(0,1))}</div>`;
+  return `
+    <div class="staff-card" data-category="${s.category}" data-id="${s.id}" onclick="pick('${s.category}', ${s.id})">
+      <div class="photo-wrap rounded-xl overflow-hidden aspect-square bg-slate-100">${photoEl}</div>
+      <div class="text-center mt-2 text-sm font-medium text-slate-700 truncate">${esc(s.name)}</div>
+    </div>`;
+}
+
+function pick(category, id) {
+  choice[category] = id;
+  document.querySelectorAll(`.staff-card[data-category="${category}"]`)
+    .forEach(el => el.classList.toggle('selected', +el.dataset.id === id));
+  updateSubmitState();
+}
+
+function clearChoice(category) {
+  choice[category] = null;
+  document.querySelectorAll(`.staff-card[data-category="${category}"]`)
+    .forEach(el => el.classList.remove('selected'));
+  updateSubmitState();
+}
+
+function updateSubmitState() {
+  const hasAny = choice.ticket || choice.field;
+  const bar = document.getElementById('submitBar');
+  bar.classList.toggle('hidden', !hasAny);
+  const labels = [];
+  if (choice.ticket) labels.push('票務');
+  if (choice.field) labels.push('外場');
+  document.getElementById('selectedHint').textContent =
+    hasAny ? `已選:${labels.join(' + ')}` : '';
+}
+
+async function loadStaff() {
+  try {
+    const data = await API.get('/api/public/staff');
+    staff = data.staff || [];
+    const ticket = staff.filter(s=>s.category==='ticket');
+    const field  = staff.filter(s=>s.category==='field');
+
+    if (ticket.length === 0 && field.length === 0) {
+      document.getElementById('loading').innerHTML =
+        '<p class="text-slate-500 py-8">目前無人員可投票</p>';
+      return;
+    }
+    document.getElementById('loading').classList.add('hidden');
+
+    if (ticket.length > 0) {
+      document.getElementById('ticketGrid').innerHTML = ticket.map(staffCardHTML).join('');
+      document.getElementById('ticketSection').classList.remove('hidden');
+    }
+    if (field.length > 0) {
+      document.getElementById('fieldGrid').innerHTML = field.map(staffCardHTML).join('');
+      document.getElementById('fieldSection').classList.remove('hidden');
+    }
+  } catch (e) {
+    document.getElementById('loading').innerHTML =
+      `<p class="text-red-500 py-8 text-sm">載入失敗:${esc(e.message)}</p>`;
+  }
+}
+
+async function checkAlreadyVoted() {
+  try {
+    const token = getOrCreateVoterToken();
+    const data = await API.get('/api/public/my-vote-status?token=' + encodeURIComponent(token));
+    if (data.voted_ticket && data.voted_field) {
+      document.getElementById('alreadyVoted').classList.remove('hidden');
+    } else if (data.voted_ticket) {
+      document.getElementById('ticketHint').textContent = '本月已投';
+      document.getElementById('ticketHint').className = 'text-xs text-emerald-600 font-bold';
+    } else if (data.voted_field) {
+      document.getElementById('fieldHint').textContent = '本月已投';
+      document.getElementById('fieldHint').className = 'text-xs text-cyan-600 font-bold';
+    }
+  } catch(_) {}
+}
+
+async function submitVote() {
+  if (!choice.ticket && !choice.field) return;
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = '送出中…';
+  try {
+    const token = getOrCreateVoterToken();
+    const body = { token };
+    if (choice.ticket) body.ticket_id = choice.ticket;
+    if (choice.field) body.field_id = choice.field;
+    const data = await API.post('/api/public/vote', body);
+    // 把成功的類別記到 localStorage 方便下次直接顯示
+    sessionStorage.setItem('vote_result', JSON.stringify(data));
+    location.href = 'thanks.html';
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = '送出投票';
+    toast('送出失敗:' + e.message);
+  }
+}
+
+loadStaff().then(checkAlreadyVoted);
+</script>
+</body>
+</html>

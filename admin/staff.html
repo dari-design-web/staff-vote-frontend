@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>員工管理 — 員工投票系統</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="../config.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/common.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>body{font-family:'Noto Sans TC',sans-serif}</style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+
+<header class="bg-white border-b border-slate-200">
+  <div class="max-w-5xl mx-auto px-5 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+      <h1 class="font-bold text-slate-800">員工投票管理</h1>
+      <nav class="flex gap-3 text-sm">
+        <a href="staff.html" class="text-emerald-700 font-bold border-b-2 border-emerald-500 pb-3">員工管理</a>
+        <a href="results.html" class="text-slate-600 hover:text-emerald-700">票數統計</a>
+      </nav>
+    </div>
+    <button onclick="adminLogout()" class="text-sm text-slate-500 hover:text-red-600">登出</button>
+  </div>
+</header>
+
+<main class="max-w-5xl mx-auto px-5 py-6">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="text-lg font-bold">員工名單</h2>
+    <button onclick="openModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold px-4 py-2 rounded-lg">
+      + 新增員工
+    </button>
+  </div>
+
+  <!-- 分組顯示 -->
+  <section class="mb-6">
+    <h3 class="text-sm font-bold text-slate-700 mb-2">
+      <span class="inline-block w-2 h-4 bg-emerald-500 rounded mr-1 align-middle"></span>
+      現場票務組 (<span id="ticketCount">0</span>)
+    </h3>
+    <div id="ticketList" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"></div>
+  </section>
+
+  <section>
+    <h3 class="text-sm font-bold text-slate-700 mb-2">
+      <span class="inline-block w-2 h-4 bg-cyan-500 rounded mr-1 align-middle"></span>
+      外場服務組 (<span id="fieldCount">0</span>)
+    </h3>
+    <div id="fieldList" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"></div>
+  </section>
+</main>
+
+<!-- 新增/編輯 modal -->
+<div id="modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+    <h3 id="modalTitle" class="text-lg font-bold mb-4">新增員工</h3>
+    <form id="staffForm" class="space-y-3">
+      <input type="hidden" id="staffId">
+      <div>
+        <label class="text-sm text-slate-600">姓名</label>
+        <input id="fName" required maxlength="20"
+          class="w-full border border-slate-300 rounded px-3 py-2 text-sm">
+      </div>
+      <div>
+        <label class="text-sm text-slate-600">組別</label>
+        <select id="fCategory" class="w-full border border-slate-300 rounded px-3 py-2 text-sm">
+          <option value="ticket">現場票務組</option>
+          <option value="field">外場服務組</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-sm text-slate-600">排序（小→大）</label>
+        <input id="fSortOrder" type="number" value="0"
+          class="w-full border border-slate-300 rounded px-3 py-2 text-sm">
+      </div>
+      <div>
+        <label class="text-sm text-slate-600 flex items-center gap-2">
+          <input id="fActive" type="checkbox" checked class="rounded">
+          <span>上架（民眾投票頁顯示）</span>
+        </label>
+      </div>
+      <div>
+        <label class="text-sm text-slate-600 block mb-1">照片</label>
+        <input id="fPhoto" type="file" accept="image/jpeg,image/png,image/webp"
+          class="text-xs w-full">
+        <div id="photoPreview" class="hidden mt-2">
+          <img id="previewImg" class="w-32 h-32 object-cover rounded-lg border">
+          <button type="button" onclick="clearPhotoInput()" class="text-xs text-red-600 mt-1">移除選擇</button>
+        </div>
+        <div id="currentPhoto" class="hidden mt-2">
+          <p class="text-xs text-slate-500 mb-1">目前照片:</p>
+          <img id="currentImg" class="w-32 h-32 object-cover rounded-lg border">
+          <button type="button" onclick="markClearPhoto()" class="text-xs text-red-600 mt-1">移除目前照片</button>
+        </div>
+        <p class="text-[11px] text-slate-400 mt-1">最大 2MB,jpg/png/webp。系統自動壓縮為 600px</p>
+      </div>
+      <div id="errBox" class="hidden text-sm text-red-600"></div>
+      <div class="flex gap-2 pt-2">
+        <button type="button" onclick="closeModal()" class="flex-1 border border-slate-300 text-slate-700 py-2 rounded text-sm hover:bg-slate-50">取消</button>
+        <button type="submit" id="saveBtn" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded text-sm font-bold">儲存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- toast -->
+<div id="toast" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-5 py-3 rounded-full shadow-2xl z-50 text-sm"></div>
+
+<script>
+if (!requireAdmin()) {}
+
+let editingPhotoBase64 = null;
+let clearPhoto = false;
+
+function toast(msg, ms=2200) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.remove('hidden');
+  setTimeout(()=>t.classList.add('hidden'), ms);
+}
+
+function staffCardHTML(s) {
+  const photoEl = s.has_photo
+    ? `<img src="${staffPhotoURL(s.id)}?t=${Date.now()}" class="w-full h-full object-cover">`
+    : `<div class="w-full h-full bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center text-slate-500 text-2xl">${esc((s.name||'?').slice(0,1))}</div>`;
+  const offBadge = s.active ? '' : '<span class="absolute top-1 right-1 bg-slate-700 text-white text-[10px] px-1.5 py-0.5 rounded">下架</span>';
+  return `
+    <div class="bg-white rounded-lg border border-slate-200 overflow-hidden">
+      <div class="relative aspect-square">${photoEl}${offBadge}</div>
+      <div class="p-2">
+        <div class="text-sm font-bold truncate">${esc(s.name)}</div>
+        <div class="text-[11px] text-slate-500 mt-0.5">排序 ${s.sort_order ?? 0}</div>
+        <div class="flex gap-1 mt-2">
+          <button onclick="openModal(${s.id})" class="flex-1 text-[11px] bg-slate-100 hover:bg-slate-200 py-1 rounded">編輯</button>
+          <button onclick="del(${s.id}, '${esc(s.name)}')" class="flex-1 text-[11px] bg-red-50 text-red-600 hover:bg-red-100 py-1 rounded">刪除</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function load() {
+  try {
+    const data = await API.get('/api/admin/staff', true);
+    const ticket = (data.staff||[]).filter(s=>s.category==='ticket');
+    const field  = (data.staff||[]).filter(s=>s.category==='field');
+    document.getElementById('ticketCount').textContent = ticket.length;
+    document.getElementById('fieldCount').textContent = field.length;
+    document.getElementById('ticketList').innerHTML =
+      ticket.length ? ticket.map(staffCardHTML).join('')
+                    : '<p class="text-sm text-slate-400 col-span-full">尚無員工</p>';
+    document.getElementById('fieldList').innerHTML =
+      field.length ? field.map(staffCardHTML).join('')
+                   : '<p class="text-sm text-slate-400 col-span-full">尚無員工</p>';
+  } catch (e) {
+    if (e.status === 401) { adminLogout(); return; }
+    toast('載入失敗:' + e.message);
+  }
+}
+
+function openModal(sid) {
+  document.getElementById('errBox').classList.add('hidden');
+  editingPhotoBase64 = null;
+  clearPhoto = false;
+  clearPhotoInput();
+  if (sid) {
+    // 編輯
+    API.get('/api/admin/staff', true).then(data => {
+      const s = (data.staff||[]).find(x => x.id === sid);
+      if (!s) return;
+      document.getElementById('modalTitle').textContent = '編輯員工 — ' + s.name;
+      document.getElementById('staffId').value = s.id;
+      document.getElementById('fName').value = s.name;
+      document.getElementById('fCategory').value = s.category;
+      document.getElementById('fSortOrder').value = s.sort_order || 0;
+      document.getElementById('fActive').checked = !!s.active;
+      if (s.has_photo) {
+        document.getElementById('currentImg').src = staffPhotoURL(s.id) + '?t=' + Date.now();
+        document.getElementById('currentPhoto').classList.remove('hidden');
+      } else {
+        document.getElementById('currentPhoto').classList.add('hidden');
+      }
+    });
+  } else {
+    document.getElementById('modalTitle').textContent = '新增員工';
+    document.getElementById('staffId').value = '';
+    document.getElementById('fName').value = '';
+    document.getElementById('fCategory').value = 'ticket';
+    document.getElementById('fSortOrder').value = 0;
+    document.getElementById('fActive').checked = true;
+    document.getElementById('currentPhoto').classList.add('hidden');
+  }
+  document.getElementById('modal').classList.remove('hidden');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.add('hidden');
+}
+
+function clearPhotoInput() {
+  document.getElementById('fPhoto').value = '';
+  document.getElementById('photoPreview').classList.add('hidden');
+  editingPhotoBase64 = null;
+}
+
+function markClearPhoto() {
+  clearPhoto = true;
+  document.getElementById('currentPhoto').classList.add('hidden');
+  toast('儲存後將移除照片');
+}
+
+document.getElementById('fPhoto').addEventListener('change', async (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  if (f.size > 2 * 1024 * 1024) {
+    toast('檔案不能超過 2MB');
+    e.target.value = '';
+    return;
+  }
+  const r = new FileReader();
+  r.onload = () => {
+    editingPhotoBase64 = r.result;
+    document.getElementById('previewImg').src = r.result;
+    document.getElementById('photoPreview').classList.remove('hidden');
+  };
+  r.readAsDataURL(f);
+});
+
+document.getElementById('staffForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('saveBtn');
+  const err = document.getElementById('errBox');
+  err.classList.add('hidden');
+  btn.disabled = true;
+  btn.textContent = '儲存中…';
+  try {
+    const payload = {
+      name: document.getElementById('fName').value.trim(),
+      category: document.getElementById('fCategory').value,
+      sort_order: parseInt(document.getElementById('fSortOrder').value || '0', 10),
+      active: document.getElementById('fActive').checked,
+    };
+    if (editingPhotoBase64) payload.photo_base64 = editingPhotoBase64;
+    if (clearPhoto) payload.clear_photo = true;
+
+    const sid = document.getElementById('staffId').value;
+    if (sid) {
+      await API.put('/api/admin/staff/' + sid, payload, true);
+    } else {
+      await API.post('/api/admin/staff', payload, true);
+    }
+    closeModal();
+    await load();
+    toast('已儲存');
+  } catch (ex) {
+    err.textContent = '失敗:' + ex.message;
+    err.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '儲存';
+  }
+});
+
+async function del(sid, name) {
+  if (!confirm(`確定刪除員工「${name}」?\n相關投票紀錄也會一併刪除。`)) return;
+  try {
+    await API.delete('/api/admin/staff/' + sid, true);
+    await load();
+    toast('已刪除');
+  } catch (e) {
+    toast('刪除失敗:' + e.message);
+  }
+}
+
+load();
+</script>
+</body>
+</html>
