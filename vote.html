@@ -33,7 +33,7 @@
   <h1 class="text-2xl font-black tracking-wide">為現場人員按個讚</h1>
   <p class="text-sm text-emerald-50 mt-1">深澳鐵道自行車 · 月度服務評選</p>
   <p class="text-xs text-emerald-100 mt-3 leading-relaxed">
-    完全匿名,每月限投一次。<br>
+    請<b>兩組各選一位</b>,完全匿名,每月限投一次。<br>
     您的肯定是我們努力的動力 ♡
   </p>
 </header>
@@ -66,8 +66,6 @@
     </div>
     <p class="text-xs text-slate-500 mb-3">為今日服務您的票務人員投票</p>
     <div id="ticketGrid" class="grid grid-cols-3 gap-3"></div>
-    <button onclick="clearChoice('ticket')" id="skipTicket"
-      class="mt-2 text-xs text-slate-500 underline hover:text-slate-700">本組跳過不投</button>
   </section>
 
   <!-- 外場組 -->
@@ -81,8 +79,6 @@
     </div>
     <p class="text-xs text-slate-500 mb-3">為協助您搭乘 / 指引 / 拍照的外場人員投票</p>
     <div id="fieldGrid" class="grid grid-cols-3 gap-3"></div>
-    <button onclick="clearChoice('field')" id="skipField"
-      class="mt-2 text-xs text-slate-500 underline hover:text-slate-700">本組跳過不投</button>
   </section>
 
   <!-- 送出按鈕 -->
@@ -107,6 +103,8 @@
 <script>
 let staff = [];
 let choice = { ticket: null, field: null };
+// 必須投的類別（該類別有員工 且 本月還沒投過）
+let requiredCategories = new Set();
 
 function toast(msg, ms=2200) {
   const t = document.getElementById('toast');
@@ -133,22 +131,35 @@ function pick(category, id) {
   updateSubmitState();
 }
 
-function clearChoice(category) {
-  choice[category] = null;
-  document.querySelectorAll(`.staff-card[data-category="${category}"]`)
-    .forEach(el => el.classList.remove('selected'));
-  updateSubmitState();
-}
-
 function updateSubmitState() {
-  const hasAny = choice.ticket || choice.field;
+  // 所有「必須投」的類別都選了才能送出
+  const missing = [];
+  if (requiredCategories.has('ticket') && !choice.ticket) missing.push('現場票務組');
+  if (requiredCategories.has('field') && !choice.field) missing.push('外場服務組');
+
+  const hasAnyChoice = choice.ticket || choice.field;
+  const allReady = missing.length === 0 && hasAnyChoice;
+
   const bar = document.getElementById('submitBar');
-  bar.classList.toggle('hidden', !hasAny);
-  const labels = [];
-  if (choice.ticket) labels.push('票務');
-  if (choice.field) labels.push('外場');
-  document.getElementById('selectedHint').textContent =
-    hasAny ? `已選:${labels.join(' + ')}` : '';
+  const btn = document.getElementById('submitBtn');
+
+  // 沒選任何東西時整個按鈕區隱藏
+  bar.classList.toggle('hidden', !hasAnyChoice);
+
+  // 按鈕灰階+禁用直到全部必選都選好
+  btn.disabled = !allReady;
+
+  const hint = document.getElementById('selectedHint');
+  if (!allReady && missing.length > 0) {
+    hint.textContent = '還需選擇:' + missing.join('、');
+    hint.className = 'text-center text-xs text-amber-600 font-bold mt-2';
+  } else if (allReady) {
+    const labels = [];
+    if (choice.ticket) labels.push('票務');
+    if (choice.field) labels.push('外場');
+    hint.textContent = `已選:${labels.join(' + ')}`;
+    hint.className = 'text-center text-xs text-slate-500 mt-2';
+  }
 }
 
 async function loadStaff() {
@@ -168,10 +179,12 @@ async function loadStaff() {
     if (ticket.length > 0) {
       document.getElementById('ticketGrid').innerHTML = ticket.map(staffCardHTML).join('');
       document.getElementById('ticketSection').classList.remove('hidden');
+      requiredCategories.add('ticket');
     }
     if (field.length > 0) {
       document.getElementById('fieldGrid').innerHTML = field.map(staffCardHTML).join('');
       document.getElementById('fieldSection').classList.remove('hidden');
+      requiredCategories.add('field');
     }
   } catch (e) {
     document.getElementById('loading').innerHTML =
@@ -183,6 +196,10 @@ async function checkAlreadyVoted() {
   try {
     const token = getOrCreateVoterToken();
     const data = await API.get('/api/public/my-vote-status?token=' + encodeURIComponent(token));
+    // 已投過的類別從「必須投」清單移除
+    if (data.voted_ticket) requiredCategories.delete('ticket');
+    if (data.voted_field) requiredCategories.delete('field');
+
     if (data.voted_ticket && data.voted_field) {
       document.getElementById('alreadyVoted').classList.remove('hidden');
     } else if (data.voted_ticket) {
@@ -196,6 +213,13 @@ async function checkAlreadyVoted() {
 }
 
 async function submitVote() {
+  // 必須投的類別都要選
+  if (requiredCategories.has('ticket') && !choice.ticket) {
+    toast('請選擇現場票務組一位'); return;
+  }
+  if (requiredCategories.has('field') && !choice.field) {
+    toast('請選擇外場服務組一位'); return;
+  }
   if (!choice.ticket && !choice.field) return;
 
   const btn = document.getElementById('submitBtn');
