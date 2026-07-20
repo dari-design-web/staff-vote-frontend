@@ -116,8 +116,10 @@ function toast(msg, ms=2200) {
 }
 
 function staffCardHTML(s) {
-  const photoEl = s.has_photo
-    ? `<img src="${staffPhotoURL(s.id)}?v=${PHOTO_VER}" alt="${esc(s.name)}" class="w-full h-full object-cover">`
+  // 優先用 API 回傳的內嵌 base64 照片(最快)，退而用舊 URL 端點
+  const photoSrc = s.photo || (s.has_photo ? `${staffPhotoURL(s.id)}?v=${PHOTO_VER}` : null);
+  const photoEl = photoSrc
+    ? `<img src="${photoSrc}" alt="${esc(s.name)}" class="w-full h-full object-cover" loading="eager" decoding="async">`
     : `<div class="photo-placeholder w-full h-full flex items-center justify-center text-2xl">${esc((s.name||'?').slice(0,1))}</div>`;
   return `
     <div class="staff-card" data-category="${s.category}" data-id="${s.id}" onclick="pick('${s.category}', ${s.id})">
