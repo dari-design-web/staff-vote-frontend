@@ -105,6 +105,8 @@ let staff = [];
 let choice = { ticket: null, field: null };
 // 必須投的類別（該類別有員工 且 本月還沒投過）
 let requiredCategories = new Set();
+// 每次載入頁面產生一個版本號，避免瀏覽器快取舊照片
+const PHOTO_VER = Date.now();
 
 function toast(msg, ms=2200) {
   const t = document.getElementById('toast');
@@ -115,7 +117,7 @@ function toast(msg, ms=2200) {
 
 function staffCardHTML(s) {
   const photoEl = s.has_photo
-    ? `<img src="${staffPhotoURL(s.id)}" alt="${esc(s.name)}" class="w-full h-full object-cover">`
+    ? `<img src="${staffPhotoURL(s.id)}?v=${PHOTO_VER}" alt="${esc(s.name)}" class="w-full h-full object-cover">`
     : `<div class="photo-placeholder w-full h-full flex items-center justify-center text-2xl">${esc((s.name||'?').slice(0,1))}</div>`;
   return `
     <div class="staff-card" data-category="${s.category}" data-id="${s.id}" onclick="pick('${s.category}', ${s.id})">
