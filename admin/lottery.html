@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>抽獎管理 — 員工投票系統</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="../config.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/common.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>body{font-family:'Noto Sans TC',sans-serif}</style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+
+<header class="bg-white border-b border-slate-200">
+  <div class="max-w-6xl mx-auto px-5 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+      <h1 class="font-bold text-slate-800">員工投票管理</h1>
+      <nav class="flex gap-3 text-sm">
+        <a href="staff.html" class="text-slate-600 hover:text-emerald-700">員工管理</a>
+        <a href="results.html" class="text-slate-600 hover:text-emerald-700">票數統計</a>
+        <a href="lottery.html" class="text-emerald-700 font-bold border-b-2 border-emerald-500 pb-3">🎁 抽獎管理</a>
+      </nav>
+    </div>
+    <button onclick="adminLogout()" class="text-sm text-slate-500 hover:text-red-600">登出</button>
+  </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-5 py-6">
+
+  <!-- 抽獎開關 -->
+  <section class="mb-6 bg-white rounded-xl border border-slate-200 p-5">
+    <div class="flex items-center justify-between">
+      <div>
+        <h2 class="text-base font-bold text-slate-800">抽獎功能狀態</h2>
+        <p class="text-sm text-slate-500 mt-1" id="statusHint">載入中…</p>
+      </div>
+      <button id="toggleBtn" onclick="toggleLottery()" disabled
+        class="px-6 py-2.5 rounded-lg font-bold text-sm transition bg-slate-200 text-slate-500">
+        載入中
+      </button>
+    </div>
+  </section>
+
+  <!-- 統計卡 -->
+  <section class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+    <div class="bg-white border border-slate-200 rounded-lg p-4">
+      <div class="text-xs text-slate-500">總登記人次</div>
+      <div class="text-2xl font-bold text-slate-800 mt-1" id="statTotal">-</div>
+    </div>
+    <div class="bg-white border border-slate-200 rounded-lg p-4">
+      <div class="text-xs text-slate-500">獨立 Email 數</div>
+      <div class="text-2xl font-bold text-emerald-700 mt-1" id="statUnique">-</div>
+    </div>
+    <div class="bg-white border border-slate-200 rounded-lg p-4">
+      <div class="text-xs text-slate-500">已中獎人數</div>
+      <div class="text-2xl font-bold text-amber-600 mt-1" id="statDrawn">-</div>
+    </div>
+    <div class="bg-white border border-slate-200 rounded-lg p-4">
+      <div class="text-xs text-slate-500">未中獎人次</div>
+      <div class="text-2xl font-bold text-slate-700 mt-1" id="statUndrawn">-</div>
+    </div>
+  </section>
+
+  <!-- 執行抽獎 -->
+  <section class="mb-6 bg-white rounded-xl border border-slate-200 p-5">
+    <h2 class="text-base font-bold text-slate-800 mb-3">🎲 執行抽獎</h2>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      <div>
+        <label class="text-xs text-slate-600 block mb-1">篩選期間</label>
+        <div class="flex gap-2 flex-wrap mb-2">
+          <button onclick="setPreset('month')" class="px-3 py-1 text-xs rounded border border-slate-300 hover:bg-slate-100">本月</button>
+          <button onclick="setPreset('3month')" class="px-3 py-1 text-xs rounded border border-slate-300 hover:bg-slate-100">近3月</button>
+          <button onclick="setPreset('quarter')" class="px-3 py-1 text-xs rounded border border-slate-300 hover:bg-slate-100">本季</button>
+          <button onclick="setPreset('year')" class="px-3 py-1 text-xs rounded border border-slate-300 hover:bg-slate-100">今年</button>
+          <button onclick="setPreset('all')" class="px-3 py-1 text-xs rounded border border-slate-300 hover:bg-slate-100">全部</button>
+        </div>
+        <div class="flex items-center gap-2">
+          <input id="dStart" type="date" class="border border-slate-300 rounded px-2 py-1.5 text-sm">
+          <span class="text-slate-500">~</span>
+          <input id="dEnd" type="date" class="border border-slate-300 rounded px-2 py-1.5 text-sm">
+        </div>
+      </div>
+
+      <div>
+        <label class="text-xs text-slate-600 block mb-1">抽獎設定</label>
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-sm text-slate-700">抽</span>
+          <input id="dCount" type="number" value="3" min="1" max="100" class="w-20 border border-slate-300 rounded px-2 py-1.5 text-sm text-center">
+          <span class="text-sm text-slate-700">位</span>
+        </div>
+        <label class="flex items-center gap-2 text-sm text-slate-700">
+          <input id="dExcludeDrawn" type="checkbox" checked class="rounded">
+          排除已中獎者
+        </label>
+      </div>
+    </div>
+
+    <div class="flex gap-2 flex-wrap">
+      <button onclick="doDraw()" id="drawBtn"
+        class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-2.5 rounded-lg text-sm transition disabled:opacity-50">
+        🎲 隨機抽獎
+      </button>
+      <button onclick="downloadExcel()"
+        class="bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 px-5 py-2.5 rounded-lg text-sm">
+        📊 下載 Excel
+      </button>
+      <button onclick="refreshList()"
+        class="bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 px-5 py-2.5 rounded-lg text-sm">
+        🔄 重新整理
+      </button>
+    </div>
+  </section>
+
+  <!-- 抽獎結果 -->
+  <section id="resultBox" class="hidden mb-6 bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-300 rounded-xl p-6">
+    <h2 class="text-lg font-bold text-amber-800 mb-3" id="resultTitle">🎉 抽獎結果</h2>
+    <div id="resultList" class="space-y-2"></div>
+    <div class="mt-4 pt-4 border-t border-amber-200 text-xs text-amber-700">
+      💡 提示:公佈粉專時只顯示 Email 前綴(<b>abc123@</b>),民眾看到後主動聯絡您。
+    </div>
+  </section>
+
+  <!-- 抽獎歷史 -->
+  <section class="mb-6 bg-white rounded-xl border border-slate-200 p-5">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-base font-bold text-slate-800">📜 抽獎歷史</h2>
+      <button onclick="toggleHistory()" id="historyToggleBtn" class="text-xs text-slate-500 hover:text-slate-700">
+        展開 ▾
+      </button>
+    </div>
+    <div id="historyList" class="hidden space-y-2 text-sm"></div>
+  </section>
+
+  <!-- 完整名單 -->
+  <section class="mb-6 bg-white rounded-xl border border-slate-200 p-5">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-base font-bold text-slate-800">📋 登記名單</h2>
+      <button onclick="toggleShowFullEmail()" id="showEmailBtn" class="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1 rounded">
+        👁 顯示完整 Email
+      </button>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-slate-600 text-left">
+          <tr>
+            <th class="px-3 py-2 w-14">#</th>
+            <th class="px-3 py-2">Email</th>
+            <th class="px-3 py-2 w-20">月份</th>
+            <th class="px-3 py-2 w-32">登記時間</th>
+            <th class="px-3 py-2 w-20 text-center">狀態</th>
+            <th class="px-3 py-2 w-20 text-center">操作</th>
+          </tr>
+        </thead>
+        <tbody id="entryList">
+          <tr><td colspan="6" class="text-center py-6 text-slate-400">載入中…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<div id="toast" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-5 py-3 rounded-full shadow-2xl z-50 text-sm"></div>
+
+<script>
+if (!requireAdmin()) {}
+
+let currentEntries = [];
+let currentDraws = [];
+let showFullEmail = false;
+let historyOpen = false;
+
+function toast(msg, ms=2200) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.remove('hidden');
+  setTimeout(()=>t.classList.add('hidden'), ms);
+}
+
+function fmtDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleString('zh-TW', { timeZone:'Asia/Taipei',
+    year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+}
+
+function fmtDateOnly(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('zh-TW');
+}
+
+// ── 抽獎開關 ────────────────────────────────
+async function loadStatus() {
+  try {
+    const r = await API.get('/api/admin/lottery/status', true);
+    updateToggleUI(r.enabled);
+  } catch (e) {
+    if (e.status === 401) { adminLogout(); return; }
+    toast('讀取狀態失敗');
+  }
+}
+
+function updateToggleUI(enabled) {
+  const btn = document.getElementById('toggleBtn');
+  const hint = document.getElementById('statusHint');
+  btn.disabled = false;
+  if (enabled) {
+    btn.textContent = '🔒 關閉抽獎';
+    btn.className = 'px-6 py-2.5 rounded-lg font-bold text-sm transition bg-red-500 hover:bg-red-600 text-white';
+    hint.innerHTML = '<span class="text-emerald-600 font-bold">● 開啟中</span> — 民眾投完票會看到抽獎登記表單';
+  } else {
+    btn.textContent = '🔓 開啟抽獎';
+    btn.className = 'px-6 py-2.5 rounded-lg font-bold text-sm transition bg-emerald-500 hover:bg-emerald-600 text-white';
+    hint.innerHTML = '<span class="text-slate-500">● 關閉</span> — 民眾看不到抽獎表單';
+  }
+  btn.dataset.enabled = enabled ? '1' : '0';
+}
+
+async function toggleLottery() {
+  const btn = document.getElementById('toggleBtn');
+  const cur = btn.dataset.enabled === '1';
+  const next = !cur;
+
+  if (!confirm(next ? '確定要開啟抽獎功能嗎?\n民眾投完票會看到登記表單' : '確定要關閉抽獎功能嗎?\n民眾將看不到抽獎表單')) return;
+
+  try {
+    await API.post('/api/admin/lottery/toggle', { enabled: next }, true);
+    updateToggleUI(next);
+    toast(next ? '抽獎已開啟' : '抽獎已關閉');
+  } catch (e) {
+    toast('切換失敗:' + e.message);
+  }
+}
+
+// ── 期間預設 ────────────────────────────────
+function setPreset(type) {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  let start, end;
+  if (type === 'month') {
+    start = new Date(y, m, 1);
+    end = new Date(y, m+1, 0);
+  } else if (type === '3month') {
+    start = new Date(y, m-2, 1);
+    end = new Date(y, m+1, 0);
+  } else if (type === 'quarter') {
+    const q = Math.floor(m/3);
+    start = new Date(y, q*3, 1);
+    end = new Date(y, q*3+3, 0);
+  } else if (type === 'year') {
+    start = new Date(y, 0, 1);
+    end = new Date(y, 11, 31);
+  } else if (type === 'all') {
+    document.getElementById('dStart').value = '';
+    document.getElementById('dEnd').value = '';
+    refreshList();
+    return;
+  }
+  const iso = d => d.toISOString().slice(0,10);
+  document.getElementById('dStart').value = iso(start);
+  document.getElementById('dEnd').value = iso(end);
+  refreshList();
+}
+
+function getPeriod() {
+  return {
+    start: document.getElementById('dStart').value || null,
+    end: document.getElementById('dEnd').value || null,
+  };
+}
+
+// ── 名單載入 ────────────────────────────────
+async function refreshList() {
+  const p = getPeriod();
+  const qs = new URLSearchParams();
+  if (p.start) qs.set('start', p.start);
+  if (p.end) qs.set('end', p.end);
+
+  try {
+    const r = await API.get('/api/admin/lottery/list?' + qs.toString(), true);
+    currentEntries = r.entries || [];
+    document.getElementById('statTotal').textContent = r.stats.total;
+    document.getElementById('statUnique').textContent = r.stats.unique_emails;
+    document.getElementById('statDrawn').textContent = r.stats.drawn;
+    document.getElementById('statUndrawn').textContent = r.stats.undrawn;
+    renderEntries();
+  } catch (e) {
+    if (e.status === 401) { adminLogout(); return; }
+    toast('載入失敗');
+  }
+}
+
+function renderEntries() {
+  const tbody = document.getElementById('entryList');
+  if (currentEntries.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-slate-400">尚無登記</td></tr>';
+    return;
+  }
+  tbody.innerHTML = currentEntries.map((e, i) => {
+    const emailDisplay = showFullEmail ? esc(e.email) : esc(e.email_local) + '@***';
+    const statusBadge = e.drawn
+      ? '<span class="bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded font-bold">🏆 中獎 R' + e.drawn_round + '</span>'
+      : '<span class="text-xs text-slate-400">-</span>';
+    return `<tr class="border-t border-slate-100 hover:bg-slate-50">
+      <td class="px-3 py-2 text-slate-500">${i+1}</td>
+      <td class="px-3 py-2 font-mono text-slate-800">${emailDisplay}</td>
+      <td class="px-3 py-2 text-slate-600">${esc(e.entry_month)}</td>
+      <td class="px-3 py-2 text-xs text-slate-500">${fmtDate(e.created_at)}</td>
+      <td class="px-3 py-2 text-center">${statusBadge}</td>
+      <td class="px-3 py-2 text-center">
+        <button onclick="delEntry(${e.id})" class="text-xs text-red-600 hover:text-red-700">刪除</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function toggleShowFullEmail() {
+  showFullEmail = !showFullEmail;
+  document.getElementById('showEmailBtn').textContent = showFullEmail ? '🔒 遮蔽 Email' : '👁 顯示完整 Email';
+  renderEntries();
+}
+
+async function delEntry(sid) {
+  if (!confirm('確定刪除此筆?')) return;
+  try {
+    await API.delete('/api/admin/lottery/entries/' + sid, true);
+    await refreshList();
+    toast('已刪除');
+  } catch (e) {
+    toast('刪除失敗');
+  }
+}
+
+// ── 抽獎 ────────────────────────────────
+async function doDraw() {
+  const p = getPeriod();
+  const count = parseInt(document.getElementById('dCount').value || '1', 10);
+  const excludeDrawn = document.getElementById('dExcludeDrawn').checked;
+
+  if (count < 1) { toast('請填抽獎人數'); return; }
+
+  if (!confirm(`確定要抽 ${count} 位嗎?\n\n抽獎期間:${p.start || '不限'} ~ ${p.end || '不限'}\n排除已中獎:${excludeDrawn ? '是' : '否'}\n\n此操作會標記中獎者狀態,不可反悔(但可重抽)。`)) return;
+
+  const btn = document.getElementById('drawBtn');
+  btn.disabled = true;
+  btn.textContent = '抽獎中...';
+
+  try {
+    const r = await API.post('/api/admin/lottery/draw', {
+      count, start: p.start, end: p.end, exclude_drawn: excludeDrawn
+    }, true);
+    renderResult(r);
+    await refreshList();
+    await loadHistory();
+    toast(`第 ${r.round} 輪抽獎完成`);
+  } catch (e) {
+    if (e.data && e.data.error === 'no_candidates') {
+      toast('候選人數不足或全部已中獎');
+    } else {
+      toast('抽獎失敗:' + e.message);
+    }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🎲 隨機抽獎';
+  }
+}
+
+function renderResult(data) {
+  const box = document.getElementById('resultBox');
+  const now = new Date().toLocaleString('zh-TW', { timeZone:'Asia/Taipei' });
+  const p = getPeriod();
+  document.getElementById('resultTitle').textContent =
+    `🎉 第 ${data.round} 輪抽獎結果 · ${now}`;
+
+  const period = p.start || p.end
+    ? `<div class="text-xs text-amber-700 mb-3">篩選期間:${p.start||'不限'} ~ ${p.end||'不限'}</div>`
+    : '';
+
+  document.getElementById('resultList').innerHTML = period + data.winners.map((w, i) => `
+    <div class="bg-white rounded-lg p-3 flex items-center gap-3 shadow-sm">
+      <div class="text-2xl">🏆</div>
+      <div class="flex-1 min-w-0">
+        <div class="font-mono text-lg font-bold text-slate-800">${esc(w.email_local)}@</div>
+        <div class="text-xs text-slate-500 mt-0.5">完整 Email: <span class="font-mono">${esc(w.email)}</span></div>
+      </div>
+      <button onclick="redraw('${esc(w.email_hash)}', '${esc(w.email_local)}')"
+        class="text-xs bg-white border border-amber-400 text-amber-700 hover:bg-amber-50 px-3 py-1.5 rounded">
+        🔄 重抽此位
+      </button>
+    </div>
+  `).join('');
+  box.classList.remove('hidden');
+  box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+async function redraw(emailHash, emailLocal) {
+  if (!confirm(`確定要重抽「${emailLocal}@」這位嗎?\n\n該 Email 會從中獎名單移除,重新從剩下的候選人抽 1 位補上。`)) return;
+  const p = getPeriod();
+  try {
+    const r = await API.post('/api/admin/lottery/redraw', {
+      email_hash: emailHash, start: p.start, end: p.end
+    }, true);
+    toast('重抽成功');
+    // 重新載入所有清單
+    await refreshList();
+    await loadHistory();
+    // 更新顯示的中獎結果（找出被替換的那一項替換掉）
+    // 簡化做法：直接重新載入頁面資料
+    document.getElementById('resultBox').classList.add('hidden');
+  } catch (e) {
+    if (e.data && e.data.error === 'no_replacement') {
+      toast('沒有可補上的候選人');
+    } else {
+      toast('重抽失敗:' + e.message);
+    }
+  }
+}
+
+// ── 抽獎歷史 ────────────────────────────────
+async function loadHistory() {
+  try {
+    const r = await API.get('/api/admin/lottery/draws', true);
+    currentDraws = r.draws || [];
+    renderHistory();
+  } catch (e) {}
+}
+
+function renderHistory() {
+  const box = document.getElementById('historyList');
+  if (currentDraws.length === 0) {
+    box.innerHTML = '<p class="text-slate-400 text-center py-4">尚無抽獎紀錄</p>';
+    return;
+  }
+  box.innerHTML = currentDraws.map(d => {
+    let winners = [];
+    try { winners = JSON.parse(d.winners); } catch(_) {}
+    const period = (d.period_start || d.period_end)
+      ? `${d.period_start || '不限'} ~ ${d.period_end || '不限'}`
+      : '不限';
+    return `<div class="border border-slate-200 rounded-lg p-3">
+      <div class="flex items-center justify-between mb-2">
+        <div class="font-bold text-slate-700">第 ${d.round_number} 輪 · 抽 ${d.count} 位</div>
+        <div class="text-xs text-slate-500">${fmtDate(d.created_at)}</div>
+      </div>
+      <div class="text-xs text-slate-500 mb-2">期間:${period}${d.exclude_drawn ? ' · 排除已中獎' : ''}</div>
+      <div class="flex flex-wrap gap-2">
+        ${winners.map(w => `<span class="bg-amber-100 text-amber-800 text-xs font-mono px-2 py-1 rounded">🏆 ${esc(w.email_local)}@</span>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleHistory() {
+  historyOpen = !historyOpen;
+  document.getElementById('historyList').classList.toggle('hidden', !historyOpen);
+  document.getElementById('historyToggleBtn').textContent = historyOpen ? '收合 ▴' : '展開 ▾';
+}
+
+// ── Excel ────────────────────────────────
+function downloadExcel() {
+  const p = getPeriod();
+  const qs = new URLSearchParams();
+  if (p.start) qs.set('start', p.start);
+  if (p.end) qs.set('end', p.end);
+  const token = localStorage.getItem(LS_ADMIN_TOKEN);
+  fetch(API_BASE + '/api/admin/lottery/export?' + qs.toString(), {
+    headers: { 'Authorization': 'Bearer ' + token }
+  })
+  .then(r => r.blob().then(b => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(b);
+    a.download = '抽獎名單.xlsx';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }))
+  .catch(e => toast('下載失敗'));
+}
+
+// ── 初始化 ────────────────────────────────
+(async () => {
+  await loadStatus();
+  await refreshList();
+  await loadHistory();
+})();
+</script>
+</body>
+</html>
