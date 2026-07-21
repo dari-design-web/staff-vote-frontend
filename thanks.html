@@ -5,12 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>感謝您的投票 — 深澳鐵道自行車</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
+<script src="config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/common.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
 <style>body{font-family:'Noto Sans TC',sans-serif}</style>
 </head>
-<body class="bg-gradient-to-b from-emerald-50 to-cyan-50 min-h-screen flex items-center justify-center px-6">
-<main class="max-w-md w-full">
-  <div class="bg-white rounded-3xl shadow-xl p-8 text-center">
+<body class="bg-gradient-to-b from-emerald-50 to-cyan-50 min-h-screen py-8 px-5">
+<main class="max-w-md mx-auto">
+
+  <!-- 感謝訊息 -->
+  <div class="bg-white rounded-3xl shadow-xl p-8 text-center mb-5">
     <div class="w-20 h-20 mx-auto bg-gradient-to-br from-emerald-500 to-cyan-500 rounded-full flex items-center justify-center mb-5">
       <svg class="w-12 h-12 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
         <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
@@ -25,15 +30,161 @@
       下個月歡迎再來投票<br>
       您的回饋將不公開,只供管理單位參考
     </p>
-    <div class="mt-8">
-      <a href="vote.html" class="block w-full text-center bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl text-sm font-bold transition">
-        再看一次
-      </a>
+  </div>
+
+  <!-- 抽獎登記區塊 (載入時判斷是否顯示) -->
+  <div id="lotteryBox" class="hidden">
+    <!-- 未登記狀態 -->
+    <div id="lotteryPromptBox" class="bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-300 rounded-3xl p-6 mb-5 hidden">
+      <div class="text-center mb-4">
+        <div class="text-4xl mb-2">🎁</div>
+        <h2 class="text-xl font-bold text-slate-800">參加抽獎</h2>
+        <p class="text-sm text-slate-600 mt-1">留下 Email 即可參加本輪抽獎</p>
+      </div>
+
+      <button id="showFormBtn" onclick="showLotteryForm()"
+        class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-xl transition mb-2">
+        我要參加抽獎
+      </button>
+      <button onclick="closeLotteryPrompt()"
+        class="w-full text-slate-500 text-sm py-2">
+        暫時不用,謝謝
+      </button>
+    </div>
+
+    <!-- 抽獎表單 -->
+    <div id="lotteryFormBox" class="hidden bg-white rounded-3xl shadow-lg p-6 mb-5 border-2 border-amber-300">
+      <h2 class="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2">
+        <span class="text-2xl">🎁</span>
+        抽獎登記
+      </h2>
+
+      <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600 mb-4 leading-relaxed">
+        <p class="font-bold mb-1">📌 個資聲明</p>
+        <p>• 投票資料<b>完全匿名</b>,不會與此登記關聯</p>
+        <p>• Email 僅用於中獎通知,不會另作他用</p>
+        <p>• 中獎公佈時只顯示 Email @ 前段(例如 <code>abc123@</code>)</p>
+        <p>• 同一 Email 每月限登記 1 次</p>
+      </div>
+
+      <form id="lotteryForm">
+        <label class="block mb-3">
+          <span class="text-sm text-slate-700 font-medium">Email</span>
+          <input id="l_email" type="email" required autocomplete="email"
+            placeholder="your@email.com"
+            class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500">
+        </label>
+
+        <label class="flex items-start gap-2 mb-4 text-sm text-slate-700">
+          <input id="l_consent" type="checkbox" required class="mt-0.5 flex-shrink-0">
+          <span class="leading-relaxed">我同意此 Email 僅供本次抽獎聯絡使用</span>
+        </label>
+
+        <div id="lotteryMsg" class="hidden mb-3 text-sm p-3 rounded-lg"></div>
+
+        <button type="submit" id="lotterySubmitBtn"
+          class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-xl transition disabled:opacity-50">
+          送出登記
+        </button>
+      </form>
+
+      <button onclick="cancelLotteryForm()"
+        class="w-full text-slate-500 text-sm mt-2 py-2">
+        取消
+      </button>
+    </div>
+
+    <!-- 登記成功 -->
+    <div id="lotterySuccessBox" class="hidden bg-gradient-to-br from-emerald-50 to-cyan-50 border-2 border-emerald-300 rounded-3xl p-6 mb-5 text-center">
+      <div class="text-4xl mb-2">🎉</div>
+      <h2 class="text-xl font-bold text-emerald-800 mb-1">登記成功!</h2>
+      <p class="text-sm text-slate-600">祝您好運</p>
+      <p class="text-xs text-slate-500 mt-3 leading-relaxed">
+        活動結束後將公佈中獎名單於粉專<br>
+        請留意 Email 或粉專通知
+      </p>
     </div>
   </div>
-  <footer class="text-center text-[11px] text-slate-400 mt-6">
+
+  <!-- 底部按鈕 -->
+  <div class="text-center">
+    <a href="vote.html" class="inline-block text-sm text-slate-500 hover:text-slate-700">
+      ← 回到投票頁
+    </a>
+  </div>
+
+  <footer class="text-center text-[11px] text-slate-400 mt-8">
     深澳鐵道自行車 · 月度服務評選
   </footer>
 </main>
+
+<script>
+// 檢查抽獎功能是否開啟
+async function checkLottery() {
+  try {
+    const r = await API.get('/api/public/lottery/status');
+    if (r.enabled) {
+      document.getElementById('lotteryBox').classList.remove('hidden');
+      document.getElementById('lotteryPromptBox').classList.remove('hidden');
+    }
+  } catch (e) {
+    // 抽獎功能查詢失敗就不顯示
+    console.warn('lottery status check failed:', e);
+  }
+}
+
+function showLotteryForm() {
+  document.getElementById('lotteryPromptBox').classList.add('hidden');
+  document.getElementById('lotteryFormBox').classList.remove('hidden');
+  setTimeout(() => document.getElementById('l_email').focus(), 100);
+}
+
+function closeLotteryPrompt() {
+  document.getElementById('lotteryPromptBox').classList.add('hidden');
+}
+
+function cancelLotteryForm() {
+  document.getElementById('lotteryFormBox').classList.add('hidden');
+  document.getElementById('lotteryPromptBox').classList.remove('hidden');
+}
+
+document.getElementById('lotteryForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('lotterySubmitBtn');
+  const msg = document.getElementById('lotteryMsg');
+  msg.classList.add('hidden');
+  btn.disabled = true;
+  btn.textContent = '送出中...';
+
+  try {
+    const r = await API.post('/api/public/lottery/enter', {
+      email: document.getElementById('l_email').value.trim(),
+      consent: document.getElementById('l_consent').checked,
+    });
+    // 成功
+    document.getElementById('lotteryFormBox').classList.add('hidden');
+    document.getElementById('lotterySuccessBox').classList.remove('hidden');
+  } catch (e) {
+    let text = e.message || '送出失敗,請稍後再試';
+    if (e.data && e.data.error === 'already_entered_this_month') {
+      text = e.data.message || '此 Email 本月已登記,下個月再來吧';
+    } else if (e.data && e.data.error === 'invalid_email') {
+      text = 'Email 格式錯誤,請檢查';
+    } else if (e.data && e.data.error === 'consent_required') {
+      text = '請勾選同意條款';
+    } else if (e.data && e.data.error === 'lottery_disabled') {
+      text = '抽獎活動目前未開放';
+    }
+    msg.textContent = '⚠️ ' + text;
+    msg.className = 'mb-3 text-sm p-3 rounded-lg bg-red-50 text-red-700 border border-red-200';
+    msg.classList.remove('hidden');
+    btn.disabled = false;
+    btn.textContent = '送出登記';
+  }
+});
+
+// 頁面載入時檢查抽獎狀態
+checkLottery();
+</script>
 </body>
 </html>
